@@ -26,14 +26,15 @@ func (c *contactBookMap) Delete(key string) {
 	delete(c.contactBook, key)
 }
 
-func (c *contactBookMap) Get(key string) string {
+func (c *contactBookMap) Get(key string) (string, bool) {
 	c.lock.RLock()
 	defer c.lock.RUnlock()
 	val, ok := c.contactBook[key]
 	if !ok {
-		return "Key-value pair does not exit"
+		val = "Key-value pair does not exit"
+		return val, false
 	}
-	return val
+	return val, true
 }
 
 func NewContactBookMap() *contactBookMap {

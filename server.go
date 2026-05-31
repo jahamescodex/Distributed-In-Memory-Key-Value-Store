@@ -6,6 +6,15 @@ import (
 	"strings"
 )
 
+type opCode int
+
+const (
+	OpInvalidCode opCode = iota
+	OpSet
+	OpDelete
+	OpGet
+)
+
 type cmd struct {
 	opCode string
 	args   []string
@@ -44,12 +53,16 @@ func handleClient(connection net.Conn, contactBook *contactBookMap) {
 				continue
 			}
 
+			if strings.ToUpper(commandLine[0]) == "EXIT" {
+				log.Fatal("Ending Program\n")
+			}
+
 			parser := &cmd{
 				opCode: commandLine[0],
 				args:   commandLine[1:],
 			}
 
-			processRequest(parser, contactBook)
+			processRequest(parser, contactBook, connection)
 
 			writePos = 0
 			continue
@@ -57,13 +70,60 @@ func handleClient(connection net.Conn, contactBook *contactBookMap) {
 		writePos++
 
 		if writePos >= len(buff) {
-			log.Printf("Oversized payload from %s - closing wire", connection.RemoteAddr())
+			log.Printf("Oversized payload from %s - closing wire\n", connection.RemoteAddr())
 			connection.Write([]byte("ERR Command too long\n"))
 			return
 		}
 	}
 }
 
-func processRequest(input *cmd, contactBook *contactBookMap) {
+func processRequest(input *cmd, contactBook *contactBookMap, connection net.Conn) {
+	var key, val string
+	op := strings.ToUpper(input.opCode)
 
+	code := validator(op, input.args)
+
+	switch code {
+	case OpInvalidCode:
+		connection.Write([]byte("Command issue\n"))
+		return
+	case OpSet:
+		key = input.args[0]
+		val = strings.Join(input.args[1:], " ")
+		contactBook.Set(key, val)
+		connection.Write([]byte("Set Complete\n"))
+	case OpDelete:
+		key = input.args[0]
+		contactBook.Delete(key)
+		connection.Write([]byte("Delete Complete\n"))
+	case OpGet:
+		key = input.args[0]
+		msg, ok := contactBook.Get(key)
+		if !ok {
+			connection.Write([]byte(msg + "\n"))
+		} else {
+			connection.Write([]byte(msg + "\n"))
+		}
+	default:
+		connection.Write([]byte("Error\n"))
+		return
+	}
+}
+
+func validator(op string, args []string) opCode {
+	if op == "SET" && len(args) < 2 {
+		return OpInvalidCode
+	} else if (op == "DELETE" || op == "GET") && len(args) < 1 {
+		return OpInvalidCode
+	}
+	if op == "SET" {
+		return OpSet
+	}
+	if op == "DELETE" {
+		return OpDelete
+	}
+	if op == "GET" {
+		return OpGet
+	}
+	return OpInvalidCode
 }
