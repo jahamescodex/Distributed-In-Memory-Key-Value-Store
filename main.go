@@ -10,12 +10,14 @@ func main() {
 	jobsPipe := make(chan net.Conn, 100)
 
 	for w := 1; w <= 10; w++ { // starting 10 workers
-		go process(jobsPipe, contactBook)
+		go process(jobsPipe, contactBook) 
 	}
 
 	listener, err := net.Listen("tcp", ":8080")
 	if err != nil {
 		log.Fatal("Error listening:", err)
+	} else {
+		log.Println("Server initiated successfully")
 	}
 	defer listener.Close()
 
