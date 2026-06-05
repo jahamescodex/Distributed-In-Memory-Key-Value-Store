@@ -1,28 +1,30 @@
 package main
 
 import (
-	"strconv"
 	"sync"
-	"sync/atomic"
 )
 
 type contactBookMap struct {
-	contactBook map[string]string
+	contactBook map[string]Record
 	lock        sync.RWMutex
-	ops         atomic.Uint64
+	ID          uint
 }
 
 type Record struct {
-	UID uint64
+	UID uint
 	val []byte
 }
 
-func (c *contactBookMap) Set(key string, val string) {
+func (c *contactBookMap) Set(key string, val []byte) {
 	c.lock.Lock()
 	defer c.lock.Unlock()
-	
-	UID := strconv.FormatUint(c.ops.Add(1), 10)
-	c.contactBook[key] = (UID + " - " + val)
+	c.ID++
+	reserve := make([]byte, len(val))
+	copy(reserve, val)
+	c.contactBook[key] = Record{
+		UID: c.ID,
+		val: reserve,
+	}
 }
 
 func (c *contactBookMap) Delete(key string) {
@@ -31,19 +33,18 @@ func (c *contactBookMap) Delete(key string) {
 	delete(c.contactBook, key)
 }
 
-func (c *contactBookMap) Get(key string) (string, bool) {
+func (c *contactBookMap) Get(key string) ([]byte, bool) {
 	c.lock.RLock()
 	defer c.lock.RUnlock()
 	val, ok := c.contactBook[key]
 	if !ok {
-		val = "Key-value pair does not exit"
-		return val, false
+		return nil, false
 	}
-	return val, true
+	return val.val, true
 }
 
 func NewContactBookMap() *contactBookMap {
 	return &contactBookMap{
-		contactBook: make(map[string]string),
+		contactBook: make(map[string]Record),
 	}
 }
