@@ -13,6 +13,7 @@ const (
 	OpSet
 	OpDelete
 	OpGet
+	OpList
 )
 
 type cmd struct {
@@ -54,7 +55,9 @@ func handleClient(connection net.Conn, contactBook *contactBookMap) {
 			}
 
 			if strings.ToUpper(commandLine[0]) == "EXIT" {
-				log.Fatal("Ending Program\n")
+				connection.Write([]byte("Ending Connection\n"))
+				log.Printf("Connection: %v closed", connection)
+				connection.Close()
 			}
 
 			parser := &cmd{
@@ -104,6 +107,16 @@ func processRequest(input *cmd, contactBook *contactBookMap, connection net.Conn
 		} else {
 			connection.Write([]byte(msg + "\n"))
 		}
+	case OpList:
+		contactBook.lock.RLock()
+		defer contactBook.lock.RUnlock()
+		if len(contactBook.contactBook) == 0 {
+			connection.Write([]byte("Empty List\n"))
+		} else {
+			for _, val := range contactBook.contactBook {
+				connection.Write([]byte(val + "\n"))
+			}
+		}
 	default:
 		connection.Write([]byte("Error\n"))
 		return
@@ -124,6 +137,9 @@ func validator(op string, args []string) opCode {
 	}
 	if op == "GET" {
 		return OpGet
+	}
+	if op == "LIST" {
+		return OpList
 	}
 	return OpInvalidCode
 }

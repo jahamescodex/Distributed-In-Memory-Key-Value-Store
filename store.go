@@ -12,10 +12,15 @@ type contactBookMap struct {
 	ops         atomic.Uint64
 }
 
+type Record struct {
+	UID uint64
+	val []byte
+}
+
 func (c *contactBookMap) Set(key string, val string) {
 	c.lock.Lock()
 	defer c.lock.Unlock()
-
+	
 	UID := strconv.FormatUint(c.ops.Add(1), 10)
 	c.contactBook[key] = (UID + " - " + val)
 }
