@@ -7,26 +7,19 @@ import (
 
 func main() {
 	contactBook := NewContactBookMap()
-	jobsPipe := make(chan net.Conn, 100)
-
-	for w := 1; w <= 10; w++ { // starting 10 workers
-		go process(jobsPipe, contactBook) 
-	}
 
 	listener, err := net.Listen("tcp", ":8080")
 	if err != nil {
-		log.Fatal("Error listening:", err)
-	} else {
-		log.Println("Server initiated successfully")
+		log.Fatal("Failed to listen", err)
 	}
 	defer listener.Close()
 
 	for {
-		conn, err := listener.Accept()
+		conn, err := listener.Accept() // performs the three-way handshake
 		if err != nil {
-			log.Println("Error accepting conn:", err)
+			log.Println("Failed to secure connection", err)
 			continue
 		}
-		jobsPipe <- conn
+		go process(conn, contactBook)
 	}
 }
