@@ -5,8 +5,8 @@ An Ultra-low Allocation In-memory KV store (In active development)
 **CURRENTLY WORKING ON:**
 - [x] Take out worker pools (bottlknecks for I/O bound architecture); utilized goroutine per connection
 - [x] Protect internal map in store.go with 'sync.RWMutex'; heavy read/write isolation
-- [x] Isolate write-paths to elimante heap escape analysis
+- [x] Isolate write-paths to eliminte heap escape analysis
 - [] Implement 'sync.pool' to reuse transient buffer slices for incoming connections
-- [] Replace high-overhead stirng conversions with 'bytes' stack operations
+- [] Replace high-overhead string conversions with 'bytes' stack operations
 - [] Implement consistent hashing for data sharding
 - [] Establish inter-node TCP communications for replication
