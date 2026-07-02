@@ -15,7 +15,7 @@ func main() {
 	defer listener.Close()
 
 	for {
-		conn, err := listener.Accept() // performs the three-way handshake
+		conn, err := listener.Accept() // performs the three-way handshake under the hood
 		if err != nil {
 			log.Println("Failed to secure connection", err)
 			continue
