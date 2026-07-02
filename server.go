@@ -56,5 +56,5 @@ func handleClient(conn net.Conn, c *contactBookMap, bufferPool *sync.Pool) {
 }
 
 func token(commandLine []byte, c *contactBookMap) {
-	
+
 }
