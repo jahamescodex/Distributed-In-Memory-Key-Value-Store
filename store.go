@@ -20,8 +20,8 @@ func (c *contactBookMap) Set(key string, val []byte) { //recieve a struct which 
 
 	c.counterOPS++ // 1 - Key : Value
 
-	copyVal := make([]byte, len(val))
-	copy(copyVal, val) //dst, src
+	copyVal := make([]byte, len(val)) // this is the 24byte struct, allocated on the function execution stack frame; this contains a pointer that points to the backing array that is on the heap
+	copy(copyVal, val)                //dst, src
 	c.contactBook[key] = Record{
 		data: copyVal,
 		ID:   c.counterOPS,
