@@ -9,7 +9,11 @@ import (
 	"sync"
 )
 
-var empty = []byte("Command Line cannot be empty")
+var empty = []byte("Command Line cannot be empty\n")
+var invalid = []byte("Invalid: Does not have enough arguments\n")
+var size = []byte("ERROR: Arguments too big\n")
+var emptyVal = []byte("Null\n")
+var success = []byte("Success\n")
 
 var bufferPool = sync.Pool{
 	New: func() any {
@@ -45,16 +49,67 @@ func handleClient(conn net.Conn, c *contactBookMap, bufferPool *sync.Pool) {
 			return
 		}
 
-		commandLine := bytes.TrimSpace((*buffHeaderPtr)[:n])
+		commandLine := bytes.TrimSpace((*buffHeaderPtr)[:n]) // clears leading /n /r or white spaces
 		if len(commandLine) == 0 {
 			conn.Write(empty)
 			continue
 		}
 
-		token(commandLine, c)
+		execute(conn, commandLine, c)
 	}
 }
 
-func token(commandLine []byte, c *contactBookMap) {
+func execute(conn net.Conn, commandLine []byte, c *contactBookMap) {
 
+	split := bytes.SplitN(commandLine, []byte(" "), 3) // slice of byte slices [ []byte, []byte ]
+	command := split[0]
+	args := split[1:]
+
+	for i := range command {
+		if command[i] >= 'a' && command[i] <= 'z' {
+			command[i] -= 32
+		}
+	}
+
+	switch string(command) {
+	case "SET":
+		if len(args) != 2 {
+			conn.Write(invalid)
+			return
+		}
+		if len(args[1]) > 1024 || len(args[0]) > 1024 {
+			conn.Write(size)
+			return
+		}
+		c.Set(string(args[0]), args[1])
+		conn.Write(success)
+	case "GET":
+		if len(args) != 1 {
+			conn.Write(invalid)
+			return
+		}
+		if len(args[0]) > 1024 {
+			conn.Write(size)
+			return
+		}
+		output, ok := c.Get(string(args[0]))
+		if !ok {
+			conn.Write(emptyVal)
+			return
+		}
+		conn.Write(output)
+		conn.Write(success)
+	case "DELETE":
+		if len(args) != 1 {
+			conn.Write(invalid)
+			return
+		}
+		if len(args[0]) > 1024 {
+			conn.Write(size)
+			return
+		}
+		c.Delete(string(args[0]))
+		conn.Write(success)
+	case "LIST":
+	}
 }

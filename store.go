@@ -36,11 +36,13 @@ func (c *contactBookMap) Get(key string) ([]byte, bool) {
 	c.lock.RLock()
 	defer c.lock.RUnlock()
 
-	val, ok := c.contactBook[key]
+	rec, ok := c.contactBook[key]
 	if !ok {
 		return nil, false
 	}
-	return val.data, true
+	copyVal := make([]byte, len(rec.data))
+	copy(copyVal, rec.data)
+	return copyVal, true
 }
 
 func (c *contactBookMap) Delete(key string) {
