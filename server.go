@@ -33,14 +33,15 @@ func handleClient(conn net.Conn, c *contactBookMap, bufferPool *sync.Pool) {
 
 	defer func() {
 		log.Printf("Client: %s just disconnected, buffer put back into pool", conn.RemoteAddr())
-		clear(*buffHeaderPtr)         // dereferences to gain access to the underlying back array that points to the actual information
+		clear(*buffHeaderPtr) // dereferences to gain access to the underlying back array that points to the actual information
+		// and clears it with its associated zero value
 		bufferPool.Put(buffHeaderPtr) // returning the pointer of the 24-byte struct back into the pool
 	}()
 
 	for {
 		*buffHeaderPtr = (*buffHeaderPtr)[:cap(*buffHeaderPtr)]
 
-		n, err := conn.Read(*buffHeaderPtr)
+		n, err := conn.Read(*buffHeaderPtr) // research about connection reset by peer : never sending a clean FIN handshake
 		if err != nil {
 			if errors.Is(err, io.EOF) {
 				return
@@ -55,14 +56,14 @@ func handleClient(conn net.Conn, c *contactBookMap, bufferPool *sync.Pool) {
 			continue
 		}
 
-		execute(conn, commandLine, c)
+		execute(conn, commandLine, c, bufferPool)
 	}
 }
 
-func execute(conn net.Conn, commandLine []byte, c *contactBookMap) {
+func execute(conn net.Conn, commandLine []byte, c *contactBookMap, bufferPool *sync.Pool) {
 
 	split := bytes.SplitN(commandLine, []byte(" "), 3) // slice of byte slices [ []byte, []byte ]
-	command := split[0]
+	command := split[0]                                // ['Get'] in binary
 	args := split[1:]
 
 	for i := range command {
@@ -77,11 +78,8 @@ func execute(conn net.Conn, commandLine []byte, c *contactBookMap) {
 			conn.Write(invalid)
 			return
 		}
-		if len(args[1]) > 1024 || len(args[0]) > 1024 {
-			conn.Write(size)
-			return
-		}
-		c.Set(string(args[0]), args[1])
+
+		c.Set((args[0]), args[1])
 		conn.Write(success)
 	case "GET":
 		if len(args) != 1 {
@@ -92,7 +90,7 @@ func execute(conn net.Conn, commandLine []byte, c *contactBookMap) {
 			conn.Write(size)
 			return
 		}
-		output, ok := c.Get(string(args[0]))
+		output, ok := c.Get((args[0]))
 		if !ok {
 			conn.Write(emptyVal)
 			return
@@ -108,8 +106,10 @@ func execute(conn net.Conn, commandLine []byte, c *contactBookMap) {
 			conn.Write(size)
 			return
 		}
-		c.Delete(string(args[0]))
+		c.Delete(args[0])
 		conn.Write(success)
 	case "LIST":
+		buffer := bufferPool.Get().(*[]byte)
+		c.List(conn, buffer)
 	}
 }

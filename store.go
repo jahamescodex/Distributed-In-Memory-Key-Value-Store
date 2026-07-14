@@ -1,6 +1,9 @@
 package main
 
-import "sync"
+import (
+	"net"
+	"sync"
+)
 
 type contactBookMap struct {
 	contactBook map[string]Record
@@ -14,7 +17,7 @@ type Record struct {
 	ID   int
 }
 
-func (c *contactBookMap) Set(key string, val []byte) { //recieve a struct which has a pointer
+func (c *contactBookMap) Set(key []byte, val []byte) { //recieve a struct which has a pointer
 	c.lock.Lock()
 	defer c.lock.Unlock()
 
@@ -22,7 +25,7 @@ func (c *contactBookMap) Set(key string, val []byte) { //recieve a struct which 
 
 	copyVal := make([]byte, len(val)) // this is the 24byte struct, allocated on the function execution stack frame; this contains a pointer that points to the backing array that is on the heap
 	copy(copyVal, val)                //dst, src
-	c.contactBook[key] = Record{
+	c.contactBook[string(key)] = Record{
 		data: copyVal,
 		ID:   c.counterOPS,
 	} // increased the length of the map
@@ -32,11 +35,11 @@ func (c *contactBookMap) Set(key string, val []byte) { //recieve a struct which 
 	}
 }
 
-func (c *contactBookMap) Get(key string) ([]byte, bool) {
+func (c *contactBookMap) Get(key []byte) ([]byte, bool) {
 	c.lock.RLock()
 	defer c.lock.RUnlock()
 
-	rec, ok := c.contactBook[key]
+	rec, ok := c.contactBook[string(key)]
 	if !ok {
 		return nil, false
 	}
@@ -45,12 +48,12 @@ func (c *contactBookMap) Get(key string) ([]byte, bool) {
 	return copyVal, true
 }
 
-func (c *contactBookMap) Delete(key string) {
+func (c *contactBookMap) Delete(key []byte) {
 	c.lock.Lock()
 	defer c.lock.Unlock()
 
 	currentHWM := c.HWM
-	delete(c.contactBook, key)
+	delete(c.contactBook, string(key))
 	if len(c.contactBook) < (currentHWM/4) && len(c.contactBook) > 8 {
 		copyMap := make(map[string]Record, len(c.contactBook))
 		for k, v := range c.contactBook {
@@ -59,6 +62,10 @@ func (c *contactBookMap) Delete(key string) {
 		c.contactBook = copyMap
 		c.HWM = len(c.contactBook)
 	}
+}
+
+func (c *contactBookMap) List(conn net.Conn, buffer *[]byte) {
+	
 }
 
 func NewContactBookMap() *contactBookMap {
