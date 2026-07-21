@@ -39,9 +39,9 @@ func handleClient(conn net.Conn, c *contactBookMap, bufferPool *sync.Pool) {
 	}()
 
 	for {
-		*buffHeaderPtr = (*buffHeaderPtr)[:cap(*buffHeaderPtr)]
+		fullBuffer := (*buffHeaderPtr)[:cap(*buffHeaderPtr)]
 
-		n, err := conn.Read(*buffHeaderPtr) // research about connection reset by peer : never sending a clean FIN handshake
+		n, err := conn.Read(fullBuffer) // research about connection reset by peer : never sending a clean FIN handshake
 		if err != nil {
 			if errors.Is(err, io.EOF) {
 				return
@@ -50,7 +50,7 @@ func handleClient(conn net.Conn, c *contactBookMap, bufferPool *sync.Pool) {
 			return
 		}
 
-		commandLine := bytes.TrimSpace((*buffHeaderPtr)[:n]) // clears leading /n /r or white spaces
+		commandLine := bytes.TrimSpace((fullBuffer)[:n]) // clears leading /n /r or white spaces
 		if len(commandLine) == 0 {
 			conn.Write(empty)
 			continue
@@ -110,6 +110,10 @@ func execute(conn net.Conn, commandLine []byte, c *contactBookMap, bufferPool *s
 		conn.Write(success)
 	case "LIST":
 		buffer := bufferPool.Get().(*[]byte)
+		defer func() {
+			clear(*buffer)
+			bufferPool.Put(buffer)
+		}()
 		c.List(conn, buffer)
 	}
 }

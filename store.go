@@ -2,6 +2,7 @@ package main
 
 import (
 	"net"
+	"strconv"
 	"sync"
 )
 
@@ -65,7 +66,42 @@ func (c *contactBookMap) Delete(key []byte) {
 }
 
 func (c *contactBookMap) List(conn net.Conn, buffer *[]byte) {
-	
+	c.lock.RLock()
+	defer c.lock.RUnlock()
+
+	window := (*buffer)
+	window = window[:0]
+	for k, v := range c.contactBook { // ID_-_k_:_v\n
+		digitLength := digitLength(v.ID)
+		currentLength := len(window) + digitLength + 7 + len(v.data) + len(k)
+		if currentLength > 1024 {
+			conn.Write(window)
+			window = window[:0]
+		}
+		window = strconv.AppendInt(window, int64(v.ID), 10)
+		window = append(window, " - "...)
+		window = append(window, k...)
+		window = append(window, " : "...)
+		window = append(window, v.data...)
+		window = append(window, "\n"...)
+	}
+	if len(window) != 0 {
+		conn.Write(window)
+	}
+}
+
+func digitLength(input int) int {
+	if input == 0 {
+		return 1
+	}
+
+	length := 0
+
+	for input != 0 {
+		length++
+		input = input / 10
+	}
+	return length
 }
 
 func NewContactBookMap() *contactBookMap {
