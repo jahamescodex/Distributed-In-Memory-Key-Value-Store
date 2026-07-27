@@ -8,5 +8,7 @@ An Ultra-low Allocation In-memory KV store (In active development)
 - [x] Isolate write-paths to eliminte heap escape analysis
 - [x] Implement 'sync.pool' to reuse transient buffer slices for incoming connections
 - [x] Replace high-overhead string conversions with 'bytes' stack operations
-- [] Implement consistent hashing for data sharding
-- [] Establish inter-node TCP communications for replication
+- [] Implement Graceful shutdown (3 step teardown)
+- [] Benchmark pre-sharded lock
+- [] Benchmark sharded lock
+- [] Compare and create a mini-study of improved lock contention
