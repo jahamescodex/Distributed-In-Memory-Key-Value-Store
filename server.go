@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"context"
 	"errors"
 	"io"
 	"log"
@@ -22,12 +23,18 @@ var bufferPool = sync.Pool{
 	},
 }
 
-func process(conn net.Conn, c *contactBookMap) {
+func process(conn net.Conn, c *contactBookMap, parentCtx context.Context, parentWaitGroup *sync.WaitGroup) {
+	defer parentWaitGroup.Done()
+	childCtx, childCancel := context.WithCancel(parentCtx)
+	defer childCancel()
+	go func() {
+		<-childCtx.Done()
+		conn.Close()
+	}()
 	handleClient(conn, c, &bufferPool)
 }
 
 func handleClient(conn net.Conn, c *contactBookMap, bufferPool *sync.Pool) {
-	defer conn.Close()
 	log.Printf("Client: %s just connected\n", conn.RemoteAddr())
 	buffHeaderPtr := bufferPool.Get().(*[]byte) // pointing to the 24-byte struct byte slice-header
 
@@ -43,7 +50,9 @@ func handleClient(conn net.Conn, c *contactBookMap, bufferPool *sync.Pool) {
 
 		n, err := conn.Read(fullBuffer) // research about connection reset by peer : never sending a clean FIN handshake
 		if err != nil {
-			if errors.Is(err, io.EOF) {
+			if errors.Is(err, net.ErrClosed) {
+				break
+			} else if errors.Is(err, io.EOF) {
 				return
 			}
 			log.Println("Error:", err)
