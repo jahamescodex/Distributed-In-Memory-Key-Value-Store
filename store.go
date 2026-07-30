@@ -70,6 +70,7 @@ func (c *contactBookMap) List(conn net.Conn, buffer *[]byte) {
 	defer c.lock.RUnlock()
 
 	window := (*buffer)
+	window = window[:cap(window)]
 	window = window[:0]
 	for k, v := range c.contactBook { // ID_-_k_:_v\n
 		digitLength := digitLength(v.ID)
