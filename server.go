@@ -27,7 +27,7 @@ func process(conn net.Conn, c *contactBookMap, parentCtx context.Context, parent
 	defer parentWaitGroup.Done()
 	childCtx, childCancel := context.WithCancel(parentCtx)
 	defer childCancel()
-	go func() {
+	defer func() {
 		<-childCtx.Done()
 		conn.Close()
 	}()
@@ -45,31 +45,47 @@ func handleClient(conn net.Conn, c *contactBookMap, bufferPool *sync.Pool) {
 		bufferPool.Put(buffHeaderPtr) // returning the pointer of the 24-byte struct back into the pool
 	}()
 
-	for {
-		fullBuffer := (*buffHeaderPtr)[:cap(*buffHeaderPtr)]
+	processed := 0
 
-		n, err := conn.Read(fullBuffer) // research about connection reset by peer : never sending a clean FIN handshake
+	for {
+		fullBuffer := (*buffHeaderPtr)[:cap(*buffHeaderPtr)] //move out of for loop maybe?
+
+		n, err := conn.Read(fullBuffer[processed:]) // research about connection reset by peer : never sending a clean FIN handshake
 		if err != nil {
 			if errors.Is(err, net.ErrClosed) {
-				break
+				return
 			} else if errors.Is(err, io.EOF) {
 				return
 			}
-			log.Println("Error:", err)
+			log.Println("Error:", err) // socket has transitioned out of the ESTABLISHED state
 			return
 		}
-
-		commandLine := bytes.TrimSpace((fullBuffer)[:n]) // clears leading /n /r or white spaces
-		if len(commandLine) == 0 {
-			conn.Write(empty)
-			continue
+		processed += n
+		for {
+			idx := bytes.IndexByte(fullBuffer[:processed], '\n')
+			if idx == -1 && processed == cap(fullBuffer) { // invalid input, overflow; conservative: malicious clients
+				conn.Write(size)
+				return
+			}
+			if idx == -1 { // broken command missing \n
+				break
+			} else {
+				commandLine := fullBuffer[:idx+1]
+				execute(conn, commandLine, c, bufferPool)
+				copy(fullBuffer, fullBuffer[idx+1:processed])
+				processed -= (idx + 1)
+			}
 		}
-
-		execute(conn, commandLine, c, bufferPool)
 	}
 }
 
 func execute(conn net.Conn, commandLine []byte, c *contactBookMap, bufferPool *sync.Pool) {
+	commandLine = bytes.TrimSpace(commandLine) // clears leading /n /r or white spaces
+
+	if len(commandLine) == 0 {
+		conn.Write(empty)
+		return
+	}
 
 	split := bytes.SplitN(commandLine, []byte(" "), 3) // slice of byte slices [ []byte, []byte ]
 	command := split[0]                                // ['Get'] in binary
@@ -87,16 +103,11 @@ func execute(conn net.Conn, commandLine []byte, c *contactBookMap, bufferPool *s
 			conn.Write(invalid)
 			return
 		}
-
 		c.Set((args[0]), args[1])
 		conn.Write(success)
 	case "GET":
 		if len(args) != 1 {
 			conn.Write(invalid)
-			return
-		}
-		if len(args[0]) > 1024 {
-			conn.Write(size)
 			return
 		}
 		output, ok := c.Get((args[0]))
@@ -109,10 +120,6 @@ func execute(conn net.Conn, commandLine []byte, c *contactBookMap, bufferPool *s
 	case "DELETE":
 		if len(args) != 1 {
 			conn.Write(invalid)
-			return
-		}
-		if len(args[0]) > 1024 {
-			conn.Write(size)
 			return
 		}
 		c.Delete(args[0])
