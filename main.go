@@ -26,8 +26,10 @@ func main() {
 
 	go func() {
 		<-shutdown
+		log.Println("Server Shutdown")
 		cancel()
 		listener.Close()
+
 	}()
 
 	for {
