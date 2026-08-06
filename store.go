@@ -1,6 +1,7 @@
 package main
 
 import (
+	"log"
 	"net"
 	"strconv"
 	"sync"
@@ -65,29 +66,52 @@ func (c *contactBookMap) Delete(key []byte) {
 	}
 }
 
+type ghost struct {
+	ID   int
+	key  string
+	data []byte
+}
+
 func (c *contactBookMap) List(conn net.Conn, buffer *[]byte) {
 	c.lock.RLock()
-	defer c.lock.RUnlock()
 
-	window := (*buffer)
-	window = window[:cap(window)]
+	tempMap := make([]ghost, len(c.contactBook))
+	i := 0
+	for k, v := range c.contactBook {
+		tempMap[i].ID = v.ID
+		tempMap[i].key = k
+		tempMap[i].data = v.data
+		i++
+	}
+
+	c.lock.RUnlock()
+
+	window := (*buffer) // has a different nature than conn.Read(...) about the cap/len
 	window = window[:0]
-	for k, v := range c.contactBook { // ID_-_k_:_v\n
-		digitLength := digitLength(v.ID)
-		currentLength := len(window) + digitLength + 7 + len(v.data) + len(k)
+	for j := range tempMap { // ID_-_k_:_v\n
+		digitLength := digitLength(tempMap[j].ID)
+		currentLength := len(window) + digitLength + 7 + len(tempMap[j].data) + len(tempMap[j].key)
 		if currentLength > 1024 {
-			conn.Write(window)
+			_, err := conn.Write(window)
+			if err != nil {
+				log.Printf("Error has occured: %v \n", err)
+				return
+			}
 			window = window[:0]
 		}
-		window = strconv.AppendInt(window, int64(v.ID), 10)
+		window = strconv.AppendInt(window, int64(tempMap[j].ID), 10)
 		window = append(window, " - "...)
-		window = append(window, k...)
+		window = append(window, tempMap[j].key...)
 		window = append(window, " : "...)
-		window = append(window, v.data...)
+		window = append(window, tempMap[j].data...)
 		window = append(window, "\n"...)
 	}
 	if len(window) != 0 {
-		conn.Write(window)
+		_, err := conn.Write(window)
+		if err != nil {
+			log.Printf("Error has occured: %v \n", err)
+			return
+		}
 	}
 }
 
