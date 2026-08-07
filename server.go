@@ -70,9 +70,9 @@ func handleClient(conn net.Conn, c *contactBookMap, bufferPool *sync.Pool) {
 			if idx == -1 { // broken command missing \n
 				break
 			} else {
-				commandLine := fullBuffer[:idx+1]
+				commandLine := fullBuffer[:idx+1] // cuts the 'ribbon' into the command line
 				execute(conn, commandLine, c, bufferPool)
-				copy(fullBuffer, fullBuffer[idx+1:processed])
+				copy(fullBuffer, fullBuffer[idx+1:processed]) // shifts the ribbon back
 				processed -= (idx + 1)
 			}
 		}
